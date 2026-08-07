@@ -3,51 +3,51 @@ from ai_service import detect_age
 from safe_browsing import check_url
 from datetime import datetime
 
-# Latest website status
+
 latest_status = {
     "website": "Waiting...",
     "status": "Waiting..."
 }
 
-# Recent activity
 activity_log = []
 
-# AI Protection Status
+# Always ON for demo
 protection_enabled = True
 
 
 def register_routes(app):
 
     # -----------------------------
-    # AI Age Detection
+    # AI Age Detection + Screen Monitoring
     # -----------------------------
     @app.route("/detect-age", methods=["GET"])
     def age_detection():
 
-        global protection_enabled
-
         result = detect_age()
 
         if result["status"] == "success":
-
-            if result["age"] < 18:
-                protection_enabled = True
-            else:
-                protection_enabled = False
-
             result["protection"] = protection_enabled
+
+            # NEW: Child + NSFW detected
+            if result.get("person") == "child" and result.get("nsfw"):
+
+                result["blocked"] = True
+                result["message"] = "Adult content blocked for minor"
+
+            else:
+                result["blocked"] = False
 
         return jsonify(result)
 
+
     # -----------------------------
-    # Safe Browsing
+    # Safe Browsing + AI Protection
     # -----------------------------
     @app.route("/check-url", methods=["POST"])
     def check_url_route():
 
         global latest_status
         global activity_log
-        global protection_enabled
 
         data = request.get_json()
 
@@ -55,53 +55,64 @@ def register_routes(app):
 
         print("\nWebsite:", url)
 
-        # If protection is OFF, don't block websites
-        if protection_enabled:
+        # URL checking
+        result = check_url(url)
 
-            result = check_url(url)
 
-        else:
+        # Check current viewer
+        ai_result = detect_age()
 
-            result = {
-                "safe": True,
-                "message": "Protection Disabled (Adult)"
-            }
 
-        # Update latest website
+        # NEW: Combine URL + AI decision
+        if (
+            ai_result.get("status") == "success"
+            and ai_result.get("person") == "child"
+            and ai_result.get("nsfw") == True
+        ):
+            result["safe"] = False
+            result["reason"] = "Adult content detected while minor is watching"
+
+
         latest_status["website"] = url
+
 
         if result["safe"]:
             latest_status["status"] = "🟢 Safe"
         else:
             latest_status["status"] = "🚫 Blocked"
 
-        # Save activity
+
         activity_log.insert(0, {
             "time": datetime.now().strftime("%H:%M:%S"),
             "website": url,
             "status": latest_status["status"]
         })
 
-        # Keep last 10 websites
         activity_log = activity_log[:10]
+
+
+        result["ai"] = ai_result
 
         return jsonify(result)
 
+
     # -----------------------------
-    # Current Website Status
+    # Website Status
     # -----------------------------
     @app.route("/website-status", methods=["GET"])
     def website_status():
 
         return jsonify(latest_status)
 
+
     # -----------------------------
-    # Activity History
+    # Activity Log
     # -----------------------------
     @app.route("/activity-log", methods=["GET"])
     def get_activity_log():
 
         return jsonify(activity_log)
+
 
     # -----------------------------
     # Protection Status

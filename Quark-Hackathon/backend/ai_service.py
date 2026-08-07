@@ -1,5 +1,9 @@
 import cv2
+import time
 from deepface import DeepFace
+from screen_capture import capture_screen
+from nsfw_detector import detect_nsfw
+
 
 def detect_age():
 
@@ -7,10 +11,7 @@ def detect_age():
 
     ret, frame = camera.read()
 
-    camera.release()      # Close camera immediately
-    cv2.destroyAllWindows()
-
-    # Continue with DeepFace analysis...
+    camera.release()
 
     if not ret:
         return {
@@ -19,7 +20,6 @@ def detect_age():
         }
 
     try:
-
         result = DeepFace.analyze(
             img_path=frame,
             actions=["age"],
@@ -33,20 +33,30 @@ def detect_age():
 
         age = int(result["age"])
 
+        # Determine person type
         if age < 18:
             person = "child"
         else:
-            person = "adult"
+            person = "child"
+
+        # Capture the current screen
+        # Wait for page/video rendering
+        time.sleep(3)
+
+        image = capture_screen()
+
+        # Detect explicit content
+        nsfw = detect_nsfw(image)
 
         return {
             "status": "success",
             "age": age,
             "person": person,
-            "confidence": result["face_confidence"]
+            "nsfw": nsfw,
+            "confidence": result.get("face_confidence", 0)
         }
 
     except Exception as e:
-
         return {
             "status": "error",
             "message": str(e)
