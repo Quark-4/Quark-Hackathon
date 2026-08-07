@@ -1,11 +1,16 @@
 import cv2
 from deepface import DeepFace
 
-camera = cv2.VideoCapture(0)
-
 def detect_age():
 
+    camera = cv2.VideoCapture(0)
+
     ret, frame = camera.read()
+
+    camera.release()      # Close camera immediately
+    cv2.destroyAllWindows()
+
+    # Continue with DeepFace analysis...
 
     if not ret:
         return {
